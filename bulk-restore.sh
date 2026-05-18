@@ -11,22 +11,25 @@ Usage:
 Description:
   Ripristina in massa tutti i file .mbz presenti in una directory,
   creando i corsi nella categoria Moodle indicata.
+  Questa versione richiama uno script PHP custom che prova a escludere
+  utenti e dati utente dal restore.
 
 Options:
-  -c, --category-id ID     ID della categoria Moodle di destinazione (obbligatorio)
-  -d, --source-dir DIR     Directory contenente i file .mbz (default: directory corrente)
-  -m, --moodle-dir DIR     Directory radice di Moodle
-                           (default: /home/espjovgi/www)
-  -p, --php PATH           Binario PHP da usare (default: /usr/local/bin/php)
-  -u, --run-as USER        Esegue il comando come utente specifico via sudo -u
-  -l, --log-dir DIR        Directory per log e file dei fallimenti
-                           (default: source-dir)
-  -n, --dry-run            Mostra i comandi senza eseguirli
-  -h, --help               Mostra questo help
+  -c, --category-id ID        ID della categoria Moodle di destinazione (obbligatorio)
+  -d, --source-dir DIR        Directory contenente i file .mbz (default: directory corrente)
+  -m, --moodle-dir DIR        Directory radice di Moodle (default: /home/espjovgi/www)
+  -p, --php PATH              Binario PHP da usare (default: /usr/local/bin/php)
+  -u, --run-as USER           Esegue il comando come utente specifico via sudo -u
+  -l, --log-dir DIR           Directory per log e file dei fallimenti (default: source-dir)
+      --php-script PATH       Script PHP custom di restore da usare
+                              (default: MOODLEDIR/admin/cli/restore_backup_nousers.php)
+      --no-debug              Non passa --showdebugging al comando PHP
+  -n, --dry-run               Mostra i comandi senza eseguirli
+  -h, --help                  Mostra questo help
 
 Examples:
-  $SCRIPT_NAME --category-id 12
-  $SCRIPT_NAME -c 12 -d /backup/moodle -m /var/www/moodle -u www-data
+  $SCRIPT_NAME --category-id 29 -d /home/espjovgi/www/public/alebackup/29
+  $SCRIPT_NAME -c 29 -d /backup/moodle -m /var/www/moodle -u www-data
 USAGE
 }
 
@@ -60,6 +63,8 @@ CATEGORY_ID=""
 SOURCE_DIR="$(pwd)"
 LOG_DIR=""
 DRY_RUN=0
+SHOWDEBUGGING=1
+PHP_SCRIPT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -93,6 +98,15 @@ while [[ $# -gt 0 ]]; do
       LOG_DIR="$2"
       shift 2
       ;;
+    --php-script)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      PHP_SCRIPT="$2"
+      shift 2
+      ;;
+    --no-debug)
+      SHOWDEBUGGING=0
+      shift
+      ;;
     -n|--dry-run)
       DRY_RUN=1
       shift
@@ -112,7 +126,9 @@ is_integer "$CATEGORY_ID" || die "Category ID must be an integer"
 [[ -d "$SOURCE_DIR" ]] || die "Source directory not found: $SOURCE_DIR"
 [[ -d "$MOODLEDIR" ]] || die "Moodle directory not found: $MOODLEDIR"
 [[ -x "$PHP_BIN" ]] || die "PHP binary not executable: $PHP_BIN"
-[[ -f "$MOODLEDIR/admin/cli/restore_backup.php" ]] || die "Moodle restore CLI script not found"
+
+PHP_SCRIPT="${PHP_SCRIPT:-$MOODLEDIR/admin/cli/restore_backup_nousers.php}"
+[[ -f "$PHP_SCRIPT" ]] || die "Custom restore PHP script not found: $PHP_SCRIPT"
 
 LOG_DIR="${LOG_DIR:-$SOURCE_DIR}"
 mkdir -p "$LOG_DIR"
@@ -138,15 +154,21 @@ log "Source directory: $SOURCE_DIR"
 log "Category ID: $CATEGORY_ID"
 log "Moodle dir: $MOODLEDIR"
 log "PHP bin: $PHP_BIN"
+log "Restore PHP script: $PHP_SCRIPT"
 [[ -n "$RUNAS" ]] && log "Run as user: $RUNAS"
 (( DRY_RUN == 1 )) && log "Dry-run mode enabled"
+(( SHOWDEBUGGING == 1 )) && log "PHP debugging enabled"
 log "Files found: ${#files[@]}"
 
 success=0
 failed=0
 
 for file in "${files[@]}"; do
-  cmd=( "$PHP_BIN" "$MOODLEDIR/admin/cli/restore_backup.php" --file="$file" --categoryid="$CATEGORY_ID" )
+  cmd=( "$PHP_BIN" "$PHP_SCRIPT" --file="$file" --categoryid="$CATEGORY_ID" )
+  if (( SHOWDEBUGGING == 1 )); then
+    cmd+=( --showdebugging )
+  fi
+
   log "Restoring: $(basename "$file")"
 
   if (( DRY_RUN == 1 )); then

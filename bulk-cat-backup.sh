@@ -15,15 +15,13 @@ Description:
 
 Options:
   -d, --destination DIR    Directory di destinazione dei backup (default: directory corrente)
-  -m, --moodle-dir DIR     Directory radice di Moodle
-                           (default: /home/whlyiult/www)
+  -m, --moodle-dir DIR     Directory radice di Moodle (default: /home/espjovgi/www)
   -p, --php PATH           Binario PHP da usare (default: /usr/local/bin/php)
   -u, --run-as USER        Esegue il comando come utente specifico via sudo -u
   -i, --course-id ID       ID corso da includere (ripetibile)
       --course-ids LIST    Elenco separato da virgole, es. 12,34,56
   -f, --course-file FILE   File di testo con un ID corso per riga
-  -l, --log-dir DIR        Directory per log e file dei fallimenti
-                           (default: destination)
+  -l, --log-dir DIR        Directory per log e file dei fallimenti (default: destination)
       --skip-existing      Salta il backup se esiste già un .mbz compatibile col courseid
   -n, --dry-run            Mostra i comandi senza eseguirli
   -h, --help               Mostra questo help
@@ -64,7 +62,7 @@ append_course_id() {
   COURSEIDS+=( "$id" )
 }
 
-MOODLEDIR="/home/whlyiult/www"
+MOODLEDIR="/home/espjovgi/www"
 PHP_BIN="/usr/local/bin/php"
 RUNAS=""
 DESTINATION="$(pwd)"
@@ -74,10 +72,7 @@ SKIP_EXISTING=0
 COURSE_FILE=""
 COURSEIDS=()
 
-DEFAULT_COURSEIDS=(
-  575 578 580 581 583 586 588 592 596 603 608 613 616 618 621 625 632
-  635 641 644 646 650 653 654 655 656 657 658 659 1809 1812
-)
+DEFAULT_COURSEIDS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -157,6 +152,7 @@ if (( ${#COURSEIDS[@]} == 0 )); then
   COURSEIDS=( "${DEFAULT_COURSEIDS[@]}" )
 fi
 
+(( ${#COURSEIDS[@]} > 0 )) || die "No course IDs provided. Use --course-id, --course-ids or --course-file"
 [[ -d "$MOODLEDIR" ]] || die "Moodle directory not found: $MOODLEDIR"
 [[ -x "$PHP_BIN" ]] || die "PHP binary not executable: $PHP_BIN"
 [[ -f "$MOODLEDIR/admin/cli/backup.php" ]] || die "Moodle backup CLI script not found"
@@ -192,7 +188,7 @@ for id in "${COURSEIDS[@]}"; do
 
   if (( SKIP_EXISTING == 1 )); then
     shopt -s nullglob
-    existing=( "$DESTINATION"/*-"$id"-*.mbz "$DESTINATION"/*course-"$id"*.mbz "$DESTINATION"/*"$id"*.mbz )
+    existing=( "$DESTINATION"/*-"$id"-*.mbz "$DESTINATION"/*course-"$id"*.mbz )
     shopt -u nullglob
     if (( ${#existing[@]} > 0 )); then
       log "SKIPPED: course $id (existing backup found)"
